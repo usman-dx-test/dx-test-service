@@ -94,6 +94,34 @@ The script exits with a non-zero status and a clear message on stderr for:
 
 If `weather_history.json` is missing or corrupted, a new log is started.
 
+## AI Code Insights daemon
+
+This repository is monitored by the DX AI Code Insights daemon (`aicodemetricsd`). On macOS it runs as a per-user LaunchAgent, and the CLI has no `stop` command, so use `launchctl` to stop and start it.
+
+**Stop the daemon:**
+
+```bash
+launchctl bootout gui/$(id -u)/com.getdx.aicodemetrics
+aicodemetricsd status    # Service should no longer show "running"
+```
+
+While stopped, agent hooks stay installed but no sessions or commits are recorded. The LaunchAgent is still present, so the daemon starts again at the next macOS login.
+
+**Start the daemon:**
+
+```bash
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.getdx.aicodemetrics.plist
+aicodemetricsd status    # Service should show "running"
+```
+
+**Restart the daemon** (reloads `~/.aicodemetrics/config.json` and refreshes monitored repositories):
+
+```bash
+aicodemetricsd restart
+```
+
+To remove the daemon entirely, follow the [DX uninstallation guide](https://docs.getdx.com/ai-code-insights/uninstallation/).
+
 ## License
 
 Provided as-is for demonstration purposes. Weather data courtesy of [Open-Meteo](https://open-meteo.com/) (CC BY 4.0).
