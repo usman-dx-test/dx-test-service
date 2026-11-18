@@ -14,3 +14,30 @@ jobs:
         run: |
           python3 hello.py
           echo "Deployed ${{ github.sha }} to production"
+
+      - name: Report deployment to DX
+        if: success()
+        env:
+          DX_API_TOKEN: ${{ secrets.DXTOKEN }}
+          DX_API_URL: https://a-software-company.getdx.net/api/deployments.create
+        run: |
+          payload=$(jq -n \
+            --arg ref "gha-${{ github.run_id }}-${{ github.run_attempt }}" \
+            --arg repo "${{ github.repository }}" \
+            --arg sha "${{ github.sha }}" \
+            --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{reference_id: $ref,
+              service: "dx-test-service",
+              repository: $repo,
+              commit_sha: $sha,
+              deployed_at: $at,
+              source_url: $url,
+              source_name: "github-actions"}')
+          echo "Sending: $payload"
+          response=$(curl -sS -X POST "$DX_API_URL" \
+            -H "Authorization: Bearer $DX_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$payload")
+          echo "DX response: $response"
+          echo "$response" | jq -e '.ok == true' > /dev/null
