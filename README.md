@@ -2,6 +2,8 @@
 
 A small command-line tool that fetches the current temperature and wind speed for a city using the free [Open-Meteo](https://open-meteo.com/) API and appends the result, with an ISO 8601 timestamp, to a local JSON log.
 
+Deployments are reported to DX via the deployments.create API.
+
 No API key is required.
 
 ## Prerequisites
