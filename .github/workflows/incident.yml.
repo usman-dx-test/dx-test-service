@@ -1,0 +1,74 @@
+name: incident
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "open = incident starts now, resolve = incident fixed now"
+        type: choice
+        options: [open, resolve]
+        default: open
+      incident_id:
+        description: "Unique ID, e.g. inc-001. Use the SAME ID to resolve."
+        required: true
+      name:
+        description: "Incident title"
+        default: "Checkout errors after deploy"
+      priority:
+        type: choice
+        options: [p1, p2, p3, p4]
+        default: p2
+      started_at:
+        description: "Leave blank when opening. When resolving, paste the started_at printed by the open run."
+        required: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send incident to DX
+        env:
+          DX_API_TOKEN: ${{ secrets.DXTOKEN }}
+          DX_API_URL: https://a-software-company.getdx.net/api/incidents.upsert
+          ACTION: ${{ inputs.action }}
+          INCIDENT_ID: ${{ inputs.incident_id }}
+          NAME: ${{ inputs.name }}
+          PRIORITY: ${{ inputs.priority }}
+          STARTED_AT: ${{ inputs.started_at }}
+        run: |
+          now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          if [ "$ACTION" = "open" ]; then
+            started="${STARTED_AT:-$now}"
+            resolved=null
+          else
+            if [ -z "$STARTED_AT" ]; then
+              echo "::error::To resolve, paste the started_at from the open run."
+              exit 1
+            fi
+            started="$STARTED_AT"
+            resolved="\"$now\""
+          fi
+
+          payload=$(jq -n \
+            --arg ref "$INCIDENT_ID" \
+            --arg name "$NAME" \
+            --arg priority "$PRIORITY" \
+            --arg started "$started" \
+            --argjson resolved "$resolved" \
+            --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{reference_id: $ref,
+              name: $name,
+              priority: $priority,
+              started_at: $started,
+              resolved_at: $resolved,
+              source_url: $url,
+              services: [{identifier: "dx-test-service"}]}')
+
+          echo "Sending: $payload"
+          response=$(curl -sS -X POST "$DX_API_URL" \
+            -H "Authorization: Bearer $DX_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$payload")
+          echo "DX response: $response"
+          echo "$response" | jq -e '.ok == true' > /dev/null
+          echo "started_at=$started  <-- save this if you will resolve later"
